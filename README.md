@@ -4,26 +4,57 @@ Content-creation automation pipeline built on the **OpenAI Agents SDK**.
 
 This repository is an experiment in automating the YouTube video workflow—from topic ideation to research—one agent at a time.
 
----
+## 🚀 Quick Start
 
-## Directory layout
+### Prerequisites
+- Python ≥ 3.12
+- OpenAI API key
+- Notion API key (for database integration)
 
-| Path | Purpose |
-|------|---------|
-| `effective_giggle/` | Python package where all agents & tools will live (to be added). |
-| `vendor_docs/openai-agents-docs/` | **Third-party reference docs** for the OpenAI Agents SDK (mirrored for offline reading). |
-| `docs/` | Project-specific docs & tutorials. |
+### Installation
 
-## Getting started
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/blackstreet-ai/effective-giggle.git
+   cd effective-giggle
+   ```
 
-1. Ensure Python ≥ 3.12 and [Poetry](https://python-poetry.org/) (or `pip` + virtualenv).
-2. Install deps:
+2. **Install dependencies**
    ```bash
    pip install -e .
    ```
-3. Read the quick tutorial in [`docs/getting_started.md`](docs/getting_started.md).
 
-> For detailed SDK reference browse `vendor_docs/openai-agents-docs/index.html` or the upstream site.
+3. **Set up environment variables**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+4. **Run the main application**
+   ```bash
+   python main.py
+   ```
+
+## 📁 Project Structure
+
+| Path | Purpose |
+|------|---------|
+| `effective_giggle/agents/` | Individual agent implementations (researcher, topic_selector) |
+| `effective_giggle/core/` | Base agent classes and shared functionality |
+| `effective_giggle/tools/` | MCP tools and integrations (Notion, etc.) |
+| `docs/` | Project documentation and tutorials |
+| `.windsurf/` | Development workflows and coding standards |
+
+## 🤖 Available Agents
+
+- **Topic Selector Agent** - Pulls candidate topics from a Notion database
+- **Researcher Agent** - Compiles bullet-point research & citations
+
+## 📚 Documentation
+
+- [Getting Started Guide](docs/getting_started.md)
+- [Project Brief](docs/project-brief.md)
+- [Agent Development Rules](.windsurf/rules/agent-development.md)
 
 ## Roadmap (v1)
 
