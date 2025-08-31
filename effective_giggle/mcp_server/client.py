@@ -258,39 +258,6 @@ class EffectiveGiggleMCPClient:
         
         return None
     
-    async def _refresh_tools_cache(self) -> None:
-        """
-        Refresh the internal tools cache from the server.
-        
-        This method queries the server for available tools and caches
-        the result for faster subsequent access.
-        """
-        if not self.session:
-            return
-        
-        try:
-            logger.debug("Refreshing tools cache...")
-            
-            # List tools from the server
-            tools_result = await self.session.list_tools()
-            
-            # Convert tools to dictionary format
-            self._tools_cache = []
-            if hasattr(tools_result, 'tools'):
-                for tool in tools_result.tools:
-                    tool_dict = {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "inputSchema": tool.inputSchema
-                    }
-                    self._tools_cache.append(tool_dict)
-            
-            logger.info(f"Cached {len(self._tools_cache)} tools from server")
-            
-        except Exception as e:
-            logger.warning(f"Failed to refresh tools cache: {e}")
-            self._tools_cache = []
-    
     def is_connected(self) -> bool:
         """
         Check if the client is currently connected to the server.
@@ -299,15 +266,6 @@ class EffectiveGiggleMCPClient:
             True if connected, False otherwise
         """
         return self.session is not None
-    
-    async def __aenter__(self):
-        """Async context manager entry."""
-        await self.connect()
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        await self.disconnect()
 
 
 # Convenience function for creating and using the client

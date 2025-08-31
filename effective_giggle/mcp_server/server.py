@@ -57,6 +57,11 @@ def _register_tools() -> None:
     notion_tools = register_notion_tools()
     _tools.update(notion_tools)
     
+    # Import and register Search tools
+    from .tools.search_tools import register_search_tools
+    search_tools = register_search_tools()
+    _tools.update(search_tools)
+    
     logger.info(f"Registered {len(_tools)} tools: {list(_tools.keys())}")
 
 

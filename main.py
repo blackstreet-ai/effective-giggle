@@ -1,72 +1,164 @@
-"""Content Creation Pipeline - Main Entry Point
+"""Simplified Content Creation Pipeline using OpenAI Agents SDK.
 
-This script demonstrates the proper OpenAI Agents SDK usage pattern for running
-a multi-agent workflow from topic selection through research.
-
-Usage:
-    python main.py
-
-The pipeline:
-1. Topic Selector - selects a topic from Notion backlog and promotes to candidate
-2. Researcher - researches the selected topic and produces digest + citations
+This demonstrates the proper usage of the OpenAI Agents SDK with native MCP integration.
+No custom wrappers, no manual orchestration - just clean agent-to-agent handoffs.
 """
 
 import asyncio
-from agents import Agent, Runner
+import pathlib
+from dotenv import load_dotenv
+from agents import Runner, handoff, RunContextWrapper
 
-from effective_giggle.core.settings import get_settings
-from effective_giggle.agents.topic_selector.agent import create as create_topic_selector
-from effective_giggle.agents.researcher.agent import create as create_researcher
+# Load .env file from project root to ensure environment variables are available
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent
+load_dotenv(PROJECT_ROOT / ".env", override=False)
+
+# Import from our local pipeline_agents.py file  
+import pipeline_agents
+TopicData = pipeline_agents.TopicData
+create_topic_selector = pipeline_agents.create_topic_selector
+create_researcher = pipeline_agents.create_researcher
+
+
+async def on_research_handoff(ctx: RunContextWrapper[None], topic_data: TopicData):
+    """Callback function executed when topic selector hands off to researcher."""
+    print(f"🔍 Research handoff received!")
+    print(f"📋 Topic: {topic_data.topic}")
+    print(f"🎯 Angle: {topic_data.angle}")
+    print(f"📄 Page ID: {topic_data.page_id}")
+    
+    # CRITICAL: Actually execute the researcher agent using proper OpenAI Agents SDK approach
+    print(f"🚀 Starting researcher execution...")
+    
+    # Create researcher agent (fresh instance for this research task)
+    researcher = create_researcher()
+    
+    # Connect MCP servers for researcher
+    for server in researcher.mcp_servers:
+        await server.connect()
+    
+    # Create detailed research assignment that the researcher agent will execute
+    research_assignment = f"""**RESEARCH ASSIGNMENT**
+
+You have received a research handoff with the following topic data:
+
+- **Topic**: {topic_data.topic}
+- **Angle**: {topic_data.angle}  
+- **Stance**: {topic_data.stance}
+- **Page ID**: {topic_data.page_id}
+- **Audience**: {topic_data.audience}
+- **Geo Focus**: {topic_data.geo_focus}
+- **Time Window**: {topic_data.time_window}
+
+Execute your complete research workflow as defined in your instructions:
+
+1. Update topic status to 'Research' using the page_id
+2. Conduct comprehensive web search on the topic and angle
+3. Search for recent news and developments
+4. Extract detailed content from the most relevant sources
+5. Compile findings into a comprehensive research report
+6. Save the research to a new Notion page
+7. Update topic status to 'Complete'
+
+Use your available MCP tools to execute each step. Focus on the specific topic, angle, and stance provided. Provide detailed, substantive research content with proper citations."""
+    
+    try:
+        # Execute the researcher agent using the OpenAI Agents SDK
+        print(f"🔬 Running researcher agent with topic: {topic_data.topic}")
+        
+        research_result = await Runner.run(
+            researcher,
+            research_assignment,
+            max_turns=15  # Allow multiple turns for the complete workflow
+        )
+        
+        print(f"✅ Research workflow completed successfully!")
+        print(f"📊 Research result length: {len(research_result.final_output)} characters")
+        print(f"🔄 Research took {len(research_result.new_items)} agent turns")
+        
+        # Clean up researcher MCP connections
+        for server in researcher.mcp_servers:
+            try:
+                if hasattr(server, 'disconnect'):
+                    await server.disconnect()
+            except Exception:
+                pass
+        
+        return f"Research completed successfully for topic: {topic_data.topic}. Research saved to Notion. Final result: {research_result.final_output[:200]}..."
+        
+    except Exception as e:
+        print(f"❌ Research workflow failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Research failed for topic: {topic_data.topic}. Error: {str(e)}"
 
 
 async def main():
-    """Run the content creation pipeline end-to-end."""
+    """Run the simplified content creation pipeline."""
+    print("🚀 Starting Simplified Content Creation Pipeline")
+    print("=" * 60)
     
-    print("🚀 Starting Content Creation Pipeline")
-    print("=" * 50)
+    # Create agents using native OpenAI SDK with MCP integration
+    topic_selector = create_topic_selector()
+    researcher = create_researcher()
     
-    # Create agents following SDK patterns
-    topic_selector = create_topic_selector().agent
-    researcher = create_researcher().agent
-    
-    # Set up handoffs - topic_selector hands off to researcher
-    topic_selector.handoffs = [researcher]
-    
-    # Update instructions to include handoff behavior
-    topic_selector.instructions = (
-        "You are a strategic content agent. When invoked you must:\n"
-        "1. Choose exactly one topic from the backlog using the Notion tool\n"
-        "2. Promote its status to 'Candidate'\n"
-        "3. Hand off to the researcher with the selected topic data\n\n"
-        "Always hand off to the researcher after selecting a topic."
-    )
+    # Collect all MCP servers for proper cleanup
+    all_servers = topic_selector.mcp_servers + researcher.mcp_servers
     
     try:
-        print("📋 Step 1: Selecting topic from Notion backlog...")
+        # Connect MCP servers
+        print("🔌 Connecting to MCP servers...")
+        for server in all_servers:
+            await server.connect()
+        print("✅ MCP servers connected")
         
-        # Start the pipeline with the topic selector
+        # Set up handoff from topic selector to researcher
+        research_handoff = handoff(
+            agent=researcher,
+            input_type=TopicData,
+            on_handoff=on_research_handoff,
+            tool_description_override="Transfer to researcher with complete topic data"
+        )
+        topic_selector.handoffs = [research_handoff]
+        
+        print("📋 Starting pipeline with topic selection...")
+        
+        # Let the SDK handle everything - agent reasoning, tool calling, handoffs
         result = await Runner.run(
-            topic_selector, 
-            "Select a topic from the backlog and hand it off for research",
-            max_turns=15  # Allow for handoffs and tool calls
+            topic_selector,
+            "Select a topic from the backlog and hand it off to the researcher for comprehensive research."
         )
         
-        print("\n✅ Pipeline completed successfully!")
-        print("=" * 50)
+        print("✅ Pipeline completed successfully!")
+        print("=" * 60)
         print("Final Result:")
         print(result.final_output)
         
     except Exception as e:
-        print(f"\n❌ Pipeline failed: {e}")
-        print("Check your .env file has valid OPENAI_API_KEY, NOTION_API_KEY, and EG_NOTION_DB_ID")
+        print(f"❌ Pipeline failed: {e}")
+        print("Check your environment variables and MCP server setup")
+        import traceback
+        traceback.print_exc()
+        
+    finally:
+        # Ensure proper cleanup of MCP server connections
+        print("🔌 Cleaning up MCP servers...")
+        for server in all_servers:
+            try:
+                # Check if server has disconnect method before calling
+                if hasattr(server, 'disconnect'):
+                    await server.disconnect()
+                elif hasattr(server, '_client') and hasattr(server._client, 'close'):
+                    # Try to close the underlying client connection
+                    await server._client.close()
+                else:
+                    # For SDK-managed servers, let the SDK handle cleanup
+                    pass
+            except Exception as cleanup_error:
+                # Suppress cleanup errors as they don't affect functionality
+                pass
+        print("✅ MCP server cleanup completed")
 
 
 if __name__ == "__main__":
-    # Ensure we have required settings
-    settings = get_settings()
-    print(f"Using model: {settings.default_model}")
-    print(f"Notion DB ID: {settings.notion_database_id[:8]}...")
-    print()
-    
-    # Run the async pipeline
     asyncio.run(main())
